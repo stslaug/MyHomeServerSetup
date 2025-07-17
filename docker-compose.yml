@@ -1,0 +1,149 @@
+services:
+  # Prowlarr - NZB Indexer  Organizer
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ} 
+    volumes:
+      - ${CONFIG_PATH}/prowlarr:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+    networks:
+      - media-net
+
+  # SABnzbd - Usenet Downloader
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/sabnzbd:/config
+      - ${DOWNLOADS_PATH}:/downloads 
+    ports:
+      - 8080:8080 # Web UI Port
+      - 9090:9090 # SSL port
+    restart: unless-stopped
+    networks:
+      - media-net
+
+  # Radarr - Movies
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/radarr:/config
+      - ${MEDIA_PATH}/movies:/movies # Final movie storage
+      - ${DOWNLOADS_PATH}:/downloads # Access to SABnzbd's complete folder
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+    networks:
+      - media-net
+    depends_on:
+      - prowlarr # Radarr needs Prowlarr to find indexers
+      - sabnzbd  # Radarr needs SABnzbd to send downloads
+
+  # Sonarr - TV Shows  
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/sonarr:/config
+      - ${MEDIA_PATH}/tvshows:/tv # Final TV show storage
+      - ${DOWNLOADS_PATH}:/downloads # Access to SABnzbd's complete folder
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+    networks:
+      - media-net
+    depends_on:
+      - prowlarr
+      - sabnzbd
+
+  # Bazarr - Subtitles
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/bazarr:/config
+      - ${MEDIA_PATH}/movies:/movies # Access to movie files for subtitles
+      - ${MEDIA_PATH}/tvshows:/tv    # Access to TV show files for subtitles
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+    networks:
+      - media-net
+    depends_on:
+      - radarr
+      - sonarr
+  
+  
+  # Jellyseerr - Media Request (Allows users in my/your network to request movies)
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest # Or ghcr.io/sct/overseerr:latest if you prefer Overseerr directly
+    container_name: jellyseerr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/jellyseerr:/app/config # Jellyseerr stores its own config/DB here
+    ports:
+      - 5055:5055 # Web UI Port
+    restart: unless-stopped
+    networks:
+      - media-net
+    depends_on:
+      - jellyfin 
+      - radarr   
+      - sonarr   
+  
+  
+  
+  # Jellyfin - Media Server
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest # Or jellyfin/jellyfin:latest if you prefer the official image
+    container_name: jellyfin
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ} 
+      - JELLYFIN_PublishedServerUrl=${PUBLISH_URL}
+    volumes:
+      - ${CONFIG_PATH}:/config 
+      - ${MEDIA_PATH}/movies:/data/movies 
+      - ${MEDIA_PATH}/tvshows:/data/tvshows 
+      
+    ports:
+      - 8096:8096 # HTTP port
+      - 7359:7359/udp # Auto-discovery
+      - 1900:1900/udp # DLNA discovery
+    restart: unless-stopped
+    networks:
+      - media-net
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+     
+networks:
+  media-net:
+    driver: bridge # A Custom bridge network for inter-container communication!
