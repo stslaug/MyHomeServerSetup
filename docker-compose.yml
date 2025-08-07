@@ -1,4 +1,33 @@
 services:
+  caddy:
+    image: ghcr.io/caddybuilds/caddy-cloudflare:latest
+    container_name: caddy
+    restart: always
+    networks:
+      - media-net
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - MY_DOMAIN=${MY_DOMAIN}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    volumes:
+      - ${CONFIG_PATH}/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ${CONFIG_PATH}/caddy/data:/data
+      - ${CONFIG_PATH}/caddy/config:/config
+
+  dnsmasq:
+    image: tschaffter/dnsmasq:latest
+    container_name: dnsmasq
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    volumes:
+      - ${CONFIG_PATH}/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf
+    restart: always
+    networks:
+      - media-net
   # Prowlarr - NZB Indexer  Organizer
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -6,12 +35,12 @@ services:
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
-      - TZ=${TZ} 
+      - TZ=${TZ}
     volumes:
       - ${CONFIG_PATH}/prowlarr:/config
     ports:
       - 9696:9696
-    restart: unless-stopped
+    restart: always
     networks:
       - media-net
 
@@ -25,11 +54,12 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_PATH}/sabnzbd:/config
-      - ${DOWNLOADS_PATH}:/downloads 
+      - ${DOWNLOADS_PATH}/complete:/downloads/complete
+      - ${DOWNLOADS_PATH}/incomplete:/downloads/incomplete
     ports:
       - 8080:8080 # Web UI Port
       - 9090:9090 # SSL port
-    restart: unless-stopped
+    restart: always
     networks:
       - media-net
 
@@ -44,17 +74,17 @@ services:
     volumes:
       - ${CONFIG_PATH}/radarr:/config
       - ${MEDIA_PATH}/movies:/movies # Final movie storage
-      - ${DOWNLOADS_PATH}:/downloads # Access to SABnzbd's complete folder
+      - ${DOWNLOADS_PATH}/complete:/downloads # Access to SABnzbd's complete folder
     ports:
       - 7878:7878
-    restart: unless-stopped
+    restart: always
     networks:
       - media-net
     depends_on:
       - prowlarr # Radarr needs Prowlarr to find indexers
       - sabnzbd  # Radarr needs SABnzbd to send downloads
 
-  # Sonarr - TV Shows  
+  # Sonarr - TV Shows
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
@@ -65,10 +95,10 @@ services:
     volumes:
       - ${CONFIG_PATH}/sonarr:/config
       - ${MEDIA_PATH}/tvshows:/tv # Final TV show storage
-      - ${DOWNLOADS_PATH}:/downloads # Access to SABnzbd's complete folder
+      - ${DOWNLOADS_PATH}/complete:/downloads # Access to SABnzbd's complete folder
     ports:
       - 8989:8989
-    restart: unless-stopped
+    restart: always
     networks:
       - media-net
     depends_on:
@@ -89,14 +119,14 @@ services:
       - ${MEDIA_PATH}/tvshows:/tv    # Access to TV show files for subtitles
     ports:
       - 6767:6767
-    restart: unless-stopped
+    restart: always
     networks:
       - media-net
     depends_on:
       - radarr
       - sonarr
-  
-  
+
+
   # Jellyseerr - Media Request (Allows users in my/your network to request movies)
   jellyseerr:
     image: fallenbagel/jellyseerr:latest # Or ghcr.io/sct/overseerr:latest if you prefer Overseerr directly
@@ -109,16 +139,16 @@ services:
       - ${CONFIG_PATH}/jellyseerr:/app/config # Jellyseerr stores its own config/DB here
     ports:
       - 5055:5055 # Web UI Port
-    restart: unless-stopped
+    restart: always
     networks:
       - media-net
     depends_on:
-      - jellyfin 
-      - radarr   
-      - sonarr   
-  
-  
-  
+      - jellyfin
+      - radarr
+      - sonarr
+
+
+
   # Jellyfin - Media Server
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:latest # Or jellyfin/jellyfin:latest if you prefer the official image
@@ -126,24 +156,26 @@ services:
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
-      - TZ=${TZ} 
+      - TZ=${TZ}
       - JELLYFIN_PublishedServerUrl=${PUBLISH_URL}
     volumes:
-      - ${CONFIG_PATH}:/config 
-      - ${MEDIA_PATH}/movies:/data/movies 
-      - ${MEDIA_PATH}/tvshows:/data/tvshows 
-      
+      - ${CONFIG_PATH}/jellyfin:/config
+      - ${MEDIA_PATH}/movies:/data/movies
+      - ${MEDIA_PATH}/tvshows:/data/tvshows
+      - ${NEW_MEDIA_PATH}/movies:/data/new_movies
+      - ${NEW_MEDIA_PATH}/shows:/data/new_shows
+
     ports:
       - 8096:8096 # HTTP port
       - 7359:7359/udp # Auto-discovery
       - 1900:1900/udp # DLNA discovery
-    restart: unless-stopped
+    restart: always
     networks:
       - media-net
     dns:
       - 8.8.8.8
       - 8.8.4.4
-     
+
 networks:
   media-net:
     driver: bridge # A Custom bridge network for inter-container communication!
