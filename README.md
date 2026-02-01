@@ -1,33 +1,59 @@
-﻿# This is my Jellyfin Docker Setup!
-This is a hobby project of mine to start my home media server dreams
-This contains multiple services nicely packed in a docker-compose file!
+# 🏠 Home Server Infrastructure
+A high-availability, containerized home server stack managed via Docker Compose. This setup automates the entire media lifecycle—from requests and discovery to automated downloading and streaming—while maintaining secure remote access through encrypted tunnels.
 
----
+## 🚀 Architecture Overview
+This server is built on a modular architecture using Docker containers, organized into specific virtual networks to ensure service isolation and security.
 
-## Services:
+## 🛡️ Networking & Remote Access
+Cloudflare Tunnel (cloudflared): Provides secure, outbound-only connectivity to the public internet without opening firewall ports.
 
-### Jellyfin
-Provides a UI on TV, android, ios, FireTV, and many more, for users to view media
+Playit.gg: A global proxy service used as a secondary low-latency tunnel, specifically for gaming traffic.
 
-### Sabnzbd
-Grabs these nzb files which contains downloads to various files
+Tailscale (Optional): Provisioned for a private WireGuard-based Mesh VPN (Meshnet) for administrative access.
 
-### Radarr, Sonarr, and Bazaarr
-Grabs Movie, TV Show, and Subtitle (respectively) NZB files and sends them to Sabnzbd to be downloaded
+## 📺 Media Automation Stack (The "Arr" Suite)
+Jellyseerr: The discovery and request layer for end-users.
 
-### Jellyseer
-A nice UI  for users to request movies and TV Shows. Then whether it is a movie or show, it send a request to Radarr or Sonarr and find your movie to be downloaded!
+Sonarr & Radarr: Automated management for TV shows and movies.
 
-### Prowlarr
+SABnzbd: High-speed Usenet downloader for binary content retrieval.
 
-Manages NZB Providers such as NZBGeek
+Bazarr: Automated subtitle management and synchronization.
 
-### Caddy and DNSMasq
-Caddy Manages local IP routing within your/my local network. 
-Using DNSMasq helps my integration with Cloudflare. It updates and manages my IP so my cloudflare configuration doesn't break when the server's IP changes.
-For this functionality to work, you will need to port forward ports 80 / 443 (Will include temp files (like Caddyfile and dnsmasq.confg)
+Jellyfin: The core media server providing hardware-accelerated transcoding (/dev/dri) for high-performance streaming.
 
+## 🛠️ Utilities & Security
+Vaultwarden: A lightweight implementation of the Bitwarden API for self-hosted password management.
 
+Homarr: A sleek, customizable dashboard used as the central "landing page" for all server services.
 
+Crafty Controller: A professional-grade management panel for hosting and monitoring Minecraft servers.
 
-## Planned Additions
+# 📂 Deployment
+Prerequisites
+Docker and Docker Compose installed.
+
+An external Docker network named shared-network (used for cross-stack communication).
+
+A .env file containing the necessary environment variables (CONFIG_PATH, MEDIA_PATH, PUID, PGID, etc.).
+
+Configuration
+The stack relies on local mapping for persistence:
+
+App Data: All service configurations are stored in ${CONFIG_PATH}.
+
+Media: Organized into /movies and /tvshows within ${MEDIA_PATH}.
+
+Startup
+Bash
+docker-compose up -d
+🛠️ Key Technical Features
+Hardware Transcoding: Jellyfin is configured to access /dev/dri for Intel QuickSync/VA-API hardware acceleration.
+
+Service Dependency Mapping: Utilizes depends_on to ensure the download client and database providers are healthy before application services start.
+
+Infrastructure as Code: The entire environment is reproducible and portable via this docker-compose.yml and a single .env file.
+
+# My Homarr Setup
+<img width="1844" height="1029" alt="image" src="https://github.com/user-attachments/assets/a60a71e3-987c-4b29-8db2-b3afee78850d" />
+
