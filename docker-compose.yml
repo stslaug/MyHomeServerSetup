@@ -1,50 +1,116 @@
 services:
-  caddy:
-    image: ghcr.io/caddybuilds/caddy-cloudflare:latest
-    container_name: caddy
-    restart: always
-    networks:
-      - media-net
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      - MY_DOMAIN=${MY_DOMAIN}
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-    volumes:
-      - ${CONFIG_PATH}/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - ${CONFIG_PATH}/caddy/data:/data
-      - ${CONFIG_PATH}/caddy/config:/config
-
-  dnsmasq:
-    image: tschaffter/dnsmasq:latest
-    container_name: dnsmasq
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-    volumes:
-      - ${CONFIG_PATH}/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf
-    restart: always
-    networks:
-      - media-net
-  # Prowlarr - NZB Indexer  Organizer
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
     volumes:
       - ${CONFIG_PATH}/prowlarr:/config
     ports:
       - 9696:9696
+    restart: unless-stopped
+
+#
+#
+#  Network Settings
+#  Cloudflared: Exposes my services to public net associated with my domain
+#  playit: Exposes my Crafty: container to the public internet. (This Tunnel handles Game Connections)
+#
+#
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-tunnel
     restart: always
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+    volumes:
+      - ${CONFIG_PATH}/cloudflared-config.yml:/cloudflared-config.yml
+      - ${CONFIG_PATH}/cloudflared-credentials.json:/cloudflared-credentials.json
+    networks:
+      - media-net
+    command: tunnel --no-autoupdate run --token eyJhIjoiZTI5M2Y2NzA2MGE0NDU3ODljYmMwNjc5NDU3ODFkZWMiLCJ0IjoiMmQ1NGM0NTktMWQ1OC00YWNkLThiM2EtOTc5Mzk5MDQwN2RiIiwicyI6IlkyWTJOV1U1T1RFdFpEZ3hZaTAwWTJKbUxUZzJNRGd0Wldaa09URmlOV1ptWWpjMyJ9
+
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:0.16
+    network_mode: host
+    environment:
+    - SECRET_KEY=b994ed285328e55302d22a57c8ff3860857c5e8caad900c3a9a908a8fe983e071
+
+
+#
+#  Home Dashboards and Info
+#  Non Client/user oriented
+#  Homarr: The Meat of Dashboards, shows info about all services
+#  Dash: Shows Stats (mostly for Homarr)
+#
+#
+#
+  dash:
+    image: mauricenino/dashdot:latest
+    restart: unless-stopped
+    privileged: true
+    environment:
+      DASHDOT_ENABLE_CPU_TEMPS: 'true'
+    ports:
+      - '80:3001'
+    volumes:
+      - /:/mnt/host:ro
+  homarr:
+    container_name: homarr
+    image: ghcr.io/homarr-labs/homarr:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Optional, only if you want docker integration
+      - ${CONFIG_PATH}/homarr/appdata:/appdata
+    environment:
+      - SECRET_ENCRYPTION_KEY=${HOMARR_CODE}
     networks:
       - media-net
 
-  # SABnzbd - Usenet Downloader
+#
+#
+#    Game Servers
+#    Crafty: Minecraft Server management
+#
+#
+#
+#
+  crafty:
+    container_name: crafty
+    image: registry.gitlab.com/crafty-controller/crafty-4:latest
+    restart: always
+    environment:
+      - TZ=Etc/UTC
+    ports:
+      - "8443:8443" # HTTPS
+      - "25565:25565" # MC SERV PORT RANGE
+    volumes:
+      - ${CONFIG_PATH}/MinecraftServer/backups:/crafty/backups
+      - ${CONFIG_PATH}/MinecraftServer/logs:/crafty/logs
+      - ${CONFIG_PATH}/MinecraftServer/servers:/crafty/servers
+      - ${CONFIG_PATH}/MinecraftServer/config:/crafty/app/config
+      - ${CONFIG_PATH}/MinecraftServer/import:/crafty/import
+    networks:
+      - media-net
+      - shared-network
+
+
+
+
+#
+#
+#
+# Usenet Access
+# SABnzbd - Usenet Downloader (Grabs NZB links sent from arr* and readmeabook apps)
+# Radarr - Usenet Browsers for Movies
+# Sonarr - Usenet Browser for TV-Shows
+# Bazarr - Usenet Subitle Management
+# Jellyseerr - Usenet Front-end To Request Each  of the above NZB links
+#
+#
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
@@ -54,11 +120,9 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_PATH}/sabnzbd:/config
-      - ${DOWNLOADS_PATH}/complete:/downloads/complete
-      - ${DOWNLOADS_PATH}/incomplete:/downloads/incomplete
+      - ${DOWNLOADS_PATH}:/downloads
     ports:
-      - 8080:8080 # Web UI Port
-      - 9090:9090 # SSL port
+      - 8080:8080
     restart: always
     networks:
       - media-net
@@ -75,13 +139,10 @@ services:
       - ${CONFIG_PATH}/radarr:/config
       - ${MEDIA_PATH}/movies:/movies # Final movie storage
       - ${DOWNLOADS_PATH}/complete:/downloads # Access to SABnzbd's complete folder
-    ports:
-      - 7878:7878
     restart: always
     networks:
       - media-net
     depends_on:
-      - prowlarr # Radarr needs Prowlarr to find indexers
       - sabnzbd  # Radarr needs SABnzbd to send downloads
 
   # Sonarr - TV Shows
@@ -94,15 +155,12 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_PATH}/sonarr:/config
-      - ${MEDIA_PATH}/tvshows:/tv # Final TV show storage
-      - ${DOWNLOADS_PATH}/complete:/downloads # Access to SABnzbd's complete folder
-    ports:
-      - 8989:8989
+      - ${MEDIA_PATH}/tvshows:/tv  #Final "resting place" for media
+      - ${DOWNLOADS_PATH}/complete:/downloads
     restart: always
     networks:
       - media-net
     depends_on:
-      - prowlarr
       - sabnzbd
 
   # Bazarr - Subtitles
@@ -117,19 +175,15 @@ services:
       - ${CONFIG_PATH}/bazarr:/config
       - ${MEDIA_PATH}/movies:/movies # Access to movie files for subtitles
       - ${MEDIA_PATH}/tvshows:/tv    # Access to TV show files for subtitles
-    ports:
-      - 6767:6767
     restart: always
     networks:
       - media-net
     depends_on:
       - radarr
       - sonarr
-
-
   # Jellyseerr - Media Request (Allows users in my/your network to request movies)
   jellyseerr:
-    image: fallenbagel/jellyseerr:latest # Or ghcr.io/sct/overseerr:latest if you prefer Overseerr directly
+    image: ghcr.io/fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     environment:
       - PUID=${PUID}
@@ -137,21 +191,50 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_PATH}/jellyseerr:/app/config # Jellyseerr stores its own config/DB here
-    ports:
-      - 5055:5055 # Web UI Port
     restart: always
     networks:
       - media-net
+    ports:
+      - 8096:8096
+      - 5055:5055
     depends_on:
       - jellyfin
       - radarr
       - sonarr
+# ReadMeABook
+  readmeabook:
+    image: ghcr.io/kikootwo/readmeabook:latest
+    container_name: readmeabook
+    restart: unless-stopped
+    ports:
+      - "3030:3030"
+    volumes:
+      - ${CONFIG_PATH}/readmeabook/config:/app/config
+      - ${CONFIG_PATH}/readmeabook/cache:/app/cache
+      - ${DOWNLOADS_PATH}:/downloads        # Your download client's path
+      - ${MEDIA_PATH}/audiobooks:/media                # Your audiobook library
+      - ${CONFIG_PATH}/readmeabook/pgdata:/var/lib/postgresql/data
+      - ${CONFIG_PATH}/readmeabook/redis:/var/lib/redis
+    environment:
+      PUID: 1000                      # Optional: your user ID
+      PGID: 1000                      # Optional: your group ID
+      PUBLIC_URL: "https://audio.seanslaughter.dev"  # Required for OAuth
+    depends_on:
+      - audiobookshelf
+      - prowlarr
+      - sabnzbd
 
 
-
-  # Jellyfin - Media Server
+#
+#
+# Media Servers
+# Jellyfin - Media server for Home Videos and Photos
+# Audiobookshelf - Media Server for audiobook files
+#
+#
+#
   jellyfin:
-    image: lscr.io/linuxserver/jellyfin:latest # Or jellyfin/jellyfin:latest if you prefer the official image
+    image: linuxserver/jellyfin:latest
     container_name: jellyfin
     environment:
       - PUID=${PUID}
@@ -160,22 +243,32 @@ services:
       - JELLYFIN_PublishedServerUrl=${PUBLISH_URL}
     volumes:
       - ${CONFIG_PATH}/jellyfin:/config
+        # Follow this scheme to add organized directories for your movies, shows, comics, etc (in my case just movies and shows)
       - ${MEDIA_PATH}/movies:/data/movies
       - ${MEDIA_PATH}/tvshows:/data/tvshows
-      - ${NEW_MEDIA_PATH}/movies:/data/new_movies
-      - ${NEW_MEDIA_PATH}/shows:/data/new_shows
-
-    ports:
-      - 8096:8096 # HTTP port
-      - 7359:7359/udp # Auto-discovery
-      - 1900:1900/udp # DLNA discovery
     restart: always
     networks:
       - media-net
     dns:
-      - 8.8.8.8
-      - 8.8.4.4
+      - 1.1.1.1
+    devices:
+      - /dev/dri:/dev/dri
+
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    ports:
+      - 13378:80
+    volumes:
+      - ${MEDIA_PATH}/audiobooks:/audiobooks
+      - ${MEDIA_PATH}/podcasts:/podcasts
+      - ${CONFIG_PATH}/audiobookshelf/config:/config
+      - ${CONFIG_PATH}/audiobookshelf/meta:/metadata
+    environment:
+      - TZ=${TZ}
+
 
 networks:
   media-net:
-    driver: bridge # A Custom bridge network for inter-container communication!
+    driver: bridge
+  shared-network:
+    external: true
