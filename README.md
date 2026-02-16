@@ -1,6 +1,9 @@
 # 🏠 Home Server Infrastructure
 A high-availability, containerized home server stack managed via Docker Compose. This setup automates the entire media lifecycle—from requests and discovery to automated downloading and streaming—while maintaining secure remote access through encrypted tunnels.
 
+#Disclaimers
+Please only utilize this setup to view media you already own. Such as Ripping DVDs and such that you have already bought. I do not endorse or condone the use of this for any illegal aquisition of copywrite protected materials. Whatever the user does with this setup is on them, especially if they dont use an VPN to secure their connections.
+
 ## 🚀 Architecture Overview
 This server is built on a modular architecture using Docker containers, organized into specific virtual networks to ensure service isolation and security.
 
@@ -59,5 +62,6 @@ Infrastructure as Code: The entire environment is reproducible and portable via 
 
 # My Homarr Setup
 <img width="1844" height="1029" alt="image" src="https://github.com/user-attachments/assets/a60a71e3-987c-4b29-8db2-b3afee78850d" />
+
 
 
