@@ -9,7 +9,8 @@ Cloudflare Tunnel (cloudflared): Provides secure, outbound-only connectivity to 
 
 Playit.gg: A global proxy service used as a secondary low-latency tunnel, specifically for gaming traffic.
 
-Tailscale (Optional): Provisioned for a private WireGuard-based Mesh VPN (Meshnet) for administrative access.
+Tailscale (Optional): Provisioned for a private WireGuard-based Mesh VPN (Meshnet) for administrative access. 
+  (This is currently not included but I do like it and could find use)
 
 ## 📺 Media Automation Stack (The "Arr" Suite)
 Jellyseerr: The discovery and request layer for end-users.
@@ -19,6 +20,8 @@ Sonarr & Radarr: Automated management for TV shows and movies.
 SABnzbd: High-speed Usenet downloader for binary content retrieval.
 
 Bazarr: Automated subtitle management and synchronization.
+
+AudiobookShelf and ReadMeABook: Audiobook Management for retrieval and Listening
 
 Jellyfin: The core media server providing hardware-accelerated transcoding (/dev/dri) for high-performance streaming.
 
@@ -56,4 +59,5 @@ Infrastructure as Code: The entire environment is reproducible and portable via 
 
 # My Homarr Setup
 <img width="1844" height="1029" alt="image" src="https://github.com/user-attachments/assets/a60a71e3-987c-4b29-8db2-b3afee78850d" />
+
 
